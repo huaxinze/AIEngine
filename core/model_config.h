@@ -43,26 +43,20 @@ int64_t GetElementCount(const std::vector<int64_t>& dims);
 /// \return The number of elements, or -1 if the number of elements
 /// cannot be determined because the shape contains one or more
 /// wildcard dimensions.
-int64_t GetElementCount(const inference::ModelInput& mio) {
-  return GetElementCount(mio.dims());
-}
+int64_t GetElementCount(const inference::ModelInput& mio);
 
 /// Get the number of elements in the shape of a model output.
 /// \param mio The model output.
 /// \return The number of elements, or -1 if the number of elements
 /// cannot be determined because the shape contains one or more
 /// wildcard dimensions.
-int64_t GetElementCount(const inference::ModelOutput& mio) {
-  return GetElementCount(mio.dims());
-}
+int64_t GetElementCount(const inference::ModelOutput& mio);
 
 /// Are values of a datatype fixed-size, or variable-sized.
 /// \param dtype The data-type.
 /// \return True if datatype values are fixed-sized, false if
 /// variable-sized.
-bool IsFixedSizeDataType(const inference::DataType dtype) {
-   return dtype != inference::DataType::TYPE_STRING;
-}
+bool IsFixedSizeDataType(const inference::DataType dtype);
 
 /// Get the size of objects of a given datatype in bytes.
 /// \param dtype The data-type.
@@ -120,17 +114,13 @@ int64_t GetByteSize(const int batch_size,
 /// \param mio The ModelInput protobuf.
 /// \return The size, in bytes, of the corresponding tensor, or -1 if
 /// unable to determine the size.
-int64_t GetByteSize(const inference::ModelInput& mio) {
-  return GetByteSize(mio.data_type(), mio.dims());
-}
+int64_t GetByteSize(const inference::ModelInput& mio);
 
 /// Get the size, in bytes, of a tensor based on ModelOutput.
 /// \param mio The ModelOutput protobuf.
 /// \return The size, in bytes, of the corresponding tensor, or -1 if
 /// unable to determine the size.
-int64_t GetByteSize(const inference::ModelOutput& mio) {
-  return GetByteSize(mio.data_type(), mio.dims());
-}
+int64_t GetByteSize(const inference::ModelOutput& mio);
 
 /// Compare two model configuration shapes for equality. Wildcard
 /// dimensions (that is, dimensions with size WILDCARD_DIM) are

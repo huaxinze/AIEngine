@@ -1,9 +1,9 @@
 #pragma once
 
-#include <string>#pragma once
-
 #include <string>
 #include "common/error.h"
+
+namespace core {
 
 class Status : public common::Error {
  public:
@@ -38,8 +38,6 @@ class Status : public common::Error {
     }                             \
   } while (false)
 
-const Status Status::Success(Status::Code::SUCCESS);
+Status CommonErrorToStatus(const common::Error& error);
 
-Status CommonErrorToStatus(const common::Error& error) {
-  return Status(error);
 }

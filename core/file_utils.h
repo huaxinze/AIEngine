@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include "status.h"
 
 namespace core {
 
@@ -23,5 +24,10 @@ std::string BaseName(const std::string& path);
 /// \param path The path.
 /// \return all but the last segment of the path.
 std::string DirName(const std::string& path);
+
+/// read string content from a file.
+/// \param path The file path.
+/// \return the content of file.
+Status ReadTextFile(const std::string& path, std::string* contents);
 
 } // namespace core

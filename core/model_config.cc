@@ -36,6 +36,18 @@ int64_t GetElementCount(const std::vector<int64_t>& dims) {
   return cnt;
 }
 
+int64_t GetElementCount(const inference::ModelInput& mio) {
+  return GetElementCount(mio.dims());
+}
+
+int64_t GetElementCount(const inference::ModelOutput& mio) {
+  return GetElementCount(mio.dims());
+}
+
+bool IsFixedSizeDataType(const inference::DataType dtype) {
+   return dtype != inference::DataType::TYPE_STRING;
+}
+
 size_t GetDataTypeByteSize(const inference::DataType dtype) {
   switch (dtype) {
     case inference::DataType::TYPE_BOOL:
@@ -122,6 +134,14 @@ int64_t GetByteSize(const int batch_size,
     return -1;
   }
   return std::max(1, batch_size) * bs;
+}
+
+int64_t GetByteSize(const inference::ModelInput& mio) {
+  return GetByteSize(mio.data_type(), mio.dims());
+}
+
+int64_t GetByteSize(const inference::ModelOutput& mio) {
+  return GetByteSize(mio.data_type(), mio.dims());
 }
 
 bool CompareDims(const DimsList& dims0,

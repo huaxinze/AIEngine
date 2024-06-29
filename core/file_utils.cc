@@ -1,4 +1,5 @@
 #include "file_utils.h"
+#include <fstream>
 
 namespace core {
 
@@ -64,6 +65,23 @@ std::string DirName(const std::string& path) {
     return std::string("/");
   }
   return path.substr(0, idx);
+}
+
+Status ReadTextFile(const std::string& path, std::string* contents) {
+  std::ifstream in(path, std::ios::in | std::ios::binary);
+  if (!in) {
+    auto msg = "failed to open text file for read " +
+               path +
+              ": " +
+              strerror(errno);
+    return Status(Status::Code::INTERNAL, msg);
+  }
+  in.seekg(0, std::ios::end);
+  contents->resize(in.tellg());
+  in.seekg(0, std::ios::beg);
+  in.read(&(*contents)[0], contents->size());
+  in.close();
+  return Status::Success;
 }
 
 } // namespace core
