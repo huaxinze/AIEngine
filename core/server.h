@@ -2,8 +2,7 @@
 
 namespace core {
 
-class InferenceRequest {
-
+class InferenceServer {
 };
 
 }

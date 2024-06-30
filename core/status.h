@@ -39,6 +39,19 @@ class Status : public common::Error {
     }                             \
   } while (false)
 
+// If SERVER error is non-OK, return the corresponding status.
+#define RETURN_IF_SERVER_ERROR(E)                               \
+  do {                                                          \
+    SERVER_Error* err__ = (E);                                  \
+    if (err__ != nullptr) {                                     \
+      Status status__ = Status(                                 \
+          ServerErrorCodeToStatusCode(SERVER_ErrorCode(err__)), \
+          SERVER_ErrorMessage(err__));                          \
+      SERVER_ErrorDelete(err__);                                \
+      return status__;                                          \
+    }                                                           \
+  } while (false)
+
 Status CommonErrorToStatus(const common::Error& error);
 
 // Return the Status::Code corresponding to a

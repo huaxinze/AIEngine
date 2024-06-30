@@ -42,6 +42,11 @@ struct BACKEND_ModelInstanceResponseStatistics;
 struct BACKEND_BackendAttribute;
 struct BACKEND_Batcher;
 
+typedef enum BACKEND_execpolicy_enum {
+  BACKEND_EXECUTION_BLOCKING,
+  BACKEND_EXECUTION_DEVICE_BLOCKING
+} BACKEND_ExecutionPolicy;
+
 #ifdef __cplusplus
 }
 #endif

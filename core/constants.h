@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <stdint.h>
 #include <vector>
 #include <memory>
@@ -42,8 +43,15 @@ constexpr char kPythonBackend[] = "python";
   DISALLOW_ASSIGN(TypeName)
 
 
-// backend
+// Map from backend name to list of setting=value pairs of cmdline
+// settings for the backend.
 using BackendCmdlineConfig = std::vector<std::pair<std::string, std::string>>;
 using BackendStateMap = std::unordered_map<std::string, std::vector<std::string>>;
+using BackendCmdlineConfigMap = std::unordered_map<std::string, BackendCmdlineConfig>;
+
+// Map from a host policy name to <setting, value> map of cmdline
+// settings for the host policy.
+using HostPolicyCmdlineConfig = std::map<std::string, std::string>;
+using HostPolicyCmdlineConfigMap = std::unordered_map<std::string, HostPolicyCmdlineConfig>;
 
 };

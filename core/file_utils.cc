@@ -1,7 +1,24 @@
 #include "file_utils.h"
 #include <fstream>
 
+#ifdef _WIN32
+// <sys/stat.h> in Windows doesn't define S_ISDIR macro
+#if !defined(S_ISDIR) && defined(S_IFMT) && defined(S_IFDIR)
+#define S_ISDIR(m) (((m)&S_IFMT) == S_IFDIR)
+#endif
+#define F_OK 0
+#endif
+
 namespace core {
+
+LocalizedPath::~LocalizedPath() {
+  if (!local_path_.empty()) {
+    bool is_dir = true;
+    IsDirectory(local_path_, &is_dir);
+    // TODO
+    // DeletePath(is_dir ? local_path_ : DirName(local_path_));
+  }
+}
 
 std::string JoinPath(std::initializer_list<std::string> segments) {
   std::string joined;
@@ -65,6 +82,17 @@ std::string DirName(const std::string& path) {
     return std::string("/");
   }
   return path.substr(0, idx);
+}
+
+Status IsDirectory(const std::string& path, bool* is_dir) {
+  *is_dir = false;
+  struct stat st;
+  if (stat(path.c_str(), &st) != 0) {
+    auto msg = "failed to stat file " + path;
+    return Status(Status::Code::INTERNAL, msg);
+  }
+  *is_dir = S_ISDIR(st.st_mode);
+  return Status::Success;
 }
 
 Status ReadTextFile(const std::string& path, std::string* contents) {
