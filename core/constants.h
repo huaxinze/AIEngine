@@ -1,6 +1,9 @@
 #pragma once
 
 #include <stdint.h>
+#include <vector>
+#include <memory>
+#include <unordered_map>
 
 namespace core {
 
@@ -30,5 +33,17 @@ constexpr char kPyTorchBackend[] = "pytorch";
 
 constexpr char kPythonFilename[] = "model.py";
 constexpr char kPythonBackend[] = "python";
+
+#define DISALLOW_MOVE(TypeName) TypeName(Context&& o) = delete;
+#define DISALLOW_COPY(TypeName) TypeName(const TypeName&) = delete;
+#define DISALLOW_ASSIGN(TypeName) void operator=(const TypeName&) = delete;
+#define DISALLOW_COPY_AND_ASSIGN(TypeName) \
+  DISALLOW_COPY(TypeName)                  \
+  DISALLOW_ASSIGN(TypeName)
+
+
+// backend
+using BackendCmdlineConfig = std::vector<std::pair<std::string, std::string>>;
+using BackendStateMap = std::unordered_map<std::string, std::vector<std::string>>;
 
 };

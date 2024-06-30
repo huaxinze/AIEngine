@@ -2,6 +2,7 @@
 
 #include <string>
 #include "common/error.h"
+#include "interface/IServer.h"
 
 namespace core {
 
@@ -39,5 +40,13 @@ class Status : public common::Error {
   } while (false)
 
 Status CommonErrorToStatus(const common::Error& error);
+
+// Return the Status::Code corresponding to a
+// SERVER_Error_Code.
+Status::Code ServerErrorCodeToStatusCode(SERVER_Error_Code code);
+
+// Return the SERVER_Error_Code corresponding to a
+// Status::Code.
+SERVER_Error_Code StatusCodeToServerErrorCode(Status::Code status_code);
 
 }

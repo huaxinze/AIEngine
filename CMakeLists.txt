@@ -8,7 +8,9 @@ project(ai_engine)
 set(CMAKE_CXX_STANDARD 11)
 
 # INCLUDE
-include_directories(${PROJECT_SOURCE_DIR})
+include_directories(
+    ${PROJECT_SOURCE_DIR}
+)
 
 # CORE_SRC
 aux_source_directory(
@@ -29,6 +31,18 @@ aux_source_directory(
 )
 
 # THIRD PARTY
+## cpp=ipc
+add_subdirectory(
+    ${PROJECT_SOURCE_DIR}/thirdparty/cpp-ipc
+)
+include_directories(
+    ${PROJECT_SOURCE_DIR}/thirdparty/cpp-ipc/include/
+)
+## rapidjson
+include_directories(
+    ${PROJECT_SOURCE_DIR}/thirdparty/rapidjson/include/
+)
+## protobuf
 include(FetchContent)
 FetchContent_Declare(
     protobuf
@@ -41,8 +55,7 @@ FetchContent_Declare(
 set(protobuf_BUILD_TESTS OFF)
 set(protobuf_MSVC_STATIC_RUNTIME OFF)
 FetchContent_MakeAvailable(protobuf)
-
-# 单元测试
+## googletest
 include(FetchContent)
 FetchContent_Declare(
     GTest
@@ -54,6 +67,7 @@ set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 set(BUILD_GMOCK OFF)
 FetchContent_MakeAvailable(GTest)
 
+# 单元测试
 enable_testing()
 add_executable(
     ${PROJECT_NAME}_test
@@ -64,6 +78,7 @@ add_executable(
 
 target_link_libraries(
     ${PROJECT_NAME}_test
+    ipc
     gtest_main
     libprotobuf
     libprotobuf-lite
