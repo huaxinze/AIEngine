@@ -250,4 +250,29 @@ Status ValidateInstanceGroup(const inference::ModelConfig& config,
   return Status::Success;
 }
 
+bool EquivalentInNonInstanceGroupConfig(const inference::ModelConfig& old_config,
+                                        const inference::ModelConfig& new_config) {
+  ::google::protobuf::util::MessageDifferencer pb_diff;
+  pb_diff.IgnoreField(
+    old_config.descriptor()->FindFieldByLowercaseName("instance_group"));
+  return pb_diff.Compare(old_config, new_config);
+}
+
+bool EquivalentInInstanceConfig(const inference::ModelInstanceGroup& instance_config_lhs,
+                                const inference::ModelInstanceGroup& instance_config_rhs) {
+  ::google::protobuf::util::MessageDifferencer pb_diff;
+  pb_diff.IgnoreField(
+      instance_config_lhs.descriptor()->FindFieldByLowercaseName("name"));
+  pb_diff.IgnoreField(
+      instance_config_lhs.descriptor()->FindFieldByLowercaseName("count"));
+  return pb_diff.Compare(instance_config_lhs, instance_config_rhs);
+}
+
+std::string InstanceConfigSignature(const inference::ModelInstanceGroup& instance_config) {
+  inference::ModelInstanceGroup config = instance_config;
+  *config.mutable_name() = "[Normalized]";
+  config.set_count(1);
+  return config.SerializeAsString();
+}
+
 } // namespace core

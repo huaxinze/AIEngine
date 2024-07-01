@@ -65,11 +65,24 @@ std::string BaseName(const std::string& path);
 /// \return all but the last segment of the path.
 std::string DirName(const std::string& path);
 
+/// check the file is existed or not.
+/// \param path The file path.
+/// \param exists whether existed.
+/// \return Status.
+Status FileExists(const std::string& path, bool* exists);
+
 /// check the path is a dir or not.
 /// \param path The file path.
 /// \param is_dir is a dir or not.
 /// \return Status.
 Status IsDirectory(const std::string& path, bool* is_dir);
+
+/// check the child path escaping the parent path or not.
+/// \param child_path The child path.
+/// \param parent_path The parent path.
+/// \return Status.
+bool IsChildPathEscapingParentPath(const std::string& child_path, 
+                                   const std::string& parent_path);
 
 /// read string content from a file.
 /// \param path The file path.

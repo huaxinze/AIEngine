@@ -1,5 +1,24 @@
 #include "file_utils.h"
 #include <fstream>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <filesystem>
+
+#ifdef _WIN32
+// suppress the min and max definitions in Windef.h.
+#define NOMINMAX
+#include <Windows.h>
+
+// _CRT_INTERNAL_NONSTDC_NAMES 1 before including Microsoft provided C Runtime
+// library to expose declarations without "_" prefix to match POSIX style.
+#define _CRT_INTERNAL_NONSTDC_NAMES 1
+#include <direct.h>
+#include <io.h>
+#else
+#include <dirent.h>
+#include <unistd.h>
+#endif
 
 #ifdef _WIN32
 // <sys/stat.h> in Windows doesn't define S_ISDIR macro
@@ -84,6 +103,11 @@ std::string DirName(const std::string& path) {
   return path.substr(0, idx);
 }
 
+Status FileExists(const std::string& path, bool* exists) {
+  *exists = (access(path.c_str(), F_OK) == 0);
+  return Status::Success;
+}
+
 Status IsDirectory(const std::string& path, bool* is_dir) {
   *is_dir = false;
   struct stat st;
@@ -93,6 +117,19 @@ Status IsDirectory(const std::string& path, bool* is_dir) {
   }
   *is_dir = S_ISDIR(st.st_mode);
   return Status::Success;
+}
+
+bool IsChildPathEscapingParentPath(const std::string& child_path, 
+                                   const std::string& parent_path) {
+  // TODO
+  const std::string absolute_child_path = child_path;
+    // std::filesystem::weakly_canonical(child_path).string();
+  const std::string absolute_parent_path = parent_path;
+    // std::filesystem::canonical(parent_path).string();
+  // Can use starts_with() over rfind() in C++20.
+  bool is_escape = 
+    absolute_child_path.rfind(absolute_parent_path, 0) != 0;
+  return is_escape;
 }
 
 Status ReadTextFile(const std::string& path, std::string* contents) {

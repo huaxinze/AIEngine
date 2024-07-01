@@ -96,6 +96,17 @@ const char* SERVER_ErrorCodeString(struct SERVER_Error* error);
 SERVER_DECLSPEC 
 const char* SERVER_ErrorMessage(struct SERVER_Error* error);
 
+/// SERVER_InstanceGroupKind
+///
+/// Kinds of instance groups recognized by SERVER.
+///
+typedef enum SERVER_instancegroupkind_enum {
+  SERVER_INSTANCEGROUPKIND_AUTO,
+  SERVER_INSTANCEGROUPKIND_CPU,
+  SERVER_INSTANCEGROUPKIND_GPU,
+  SERVER_INSTANCEGROUPKIND_MODEL
+} SERVER_InstanceGroupKind;
+
 #ifdef __cplusplus
 }
 #endif
