@@ -9,6 +9,7 @@
 #include "constants.h"
 #include "file_utils.h"
 #include "backend_model.h"
+#include "backend_model_instance.h"
 
 namespace core {
 
@@ -25,6 +26,38 @@ class BackendModel : public Model {
                        const bool is_config_provided, 
                        std::unique_ptr<BackendModel>* model);
   ~BackendModel();
+
+  // Return path to the localized model directory.
+  const std::string& LocalizedModelPath() const {
+    return localized_model_dir_->Path();
+  }
+  // Return pointer to the underlying server.
+  InferenceServer* Server() { return server_; }
+
+  // Return the backend command line config map.
+  const BackendCmdlineConfigMap& BackendConfigMap() const {
+    return backend_cmdline_config_map_;
+  }
+  // Return the host policy command line config map.
+  const HostPolicyCmdlineConfigMap& HostPolicyMap() const {
+    return host_policy_map_;
+  }
+  // Called by BACKEND_ModelSetConfig() C-API.
+  Status UpdateModelConfig(const uint32_t config_version, 
+                           Message* updated_config_message);
+  // Return the underlying backend.
+  const std::shared_ptr<Backend>& GetBackend() const { 
+    return backend_; 
+  }
+  // Manipulate the opaque state associated with this model.
+  void* State() { return state_; }
+  void SetState(void* state) { state_ = state; }
+  // True if different instances should be grouped by device; false otherwise.
+  bool DeviceBlocking() const { return device_blocking_; }
+  // Update instance group.
+  Status UpdateInstanceGroup(const inference::ModelConfig& new_model_config);
+  // Get a vector of non-passive background instances that share the device id.
+  std::vector<std::shared_ptr<BackendModelInstance>> GetInstancesByDevice(int32_t device_id) const;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(BackendModel);
@@ -48,6 +81,23 @@ class BackendModel : public Model {
       localized_model_dir_(localized_model_dir), 
       backend_(backend),
       state_(nullptr) {}
+  // Gets the execution policy setting from the backend.
+  Status GetExecutionPolicy(const inference::ModelConfig& model_config);
+  // Set the scheduler based on the model configuration and the provided
+  // instances.
+  Status SetConfiguredScheduler(
+      const std::vector<std::shared_ptr<BackendModelInstance>>& new_instances);
+  // Prepare the next set of instances on the background. Returns the instances
+  // that will be added and removed if the next set of instances is to be
+  // committed.
+  Status PrepareInstances(
+    const inference::ModelConfig& model_config,
+    std::vector<std::shared_ptr<BackendModelInstance>>* added_instances,
+    std::vector<std::shared_ptr<BackendModelInstance>>* removed_instances);
+  // Replace the foreground instances with background instances.
+  void CommitInstances();
+  // Clear all background instances.
+  void ClearBackgroundInstances();
 
   // Merges the global backend configs with the specific
   // backend configs.
@@ -124,6 +174,14 @@ class BackendModel : public Model {
   const HostPolicyCmdlineConfigMap host_policy_map_;
   // The device blocking. It should not be changed after the model is created.
   bool device_blocking_;
+  // The model instances for this model. Passive instances are loaded but not
+  // added to the scheduler.
+  std::vector<std::shared_ptr<BackendModelInstance>> instances_;
+  std::vector<std::shared_ptr<BackendModelInstance>> passive_instances_;
+  // They are the background 'instances_' and 'passive_instances_', not yet
+  // effective until committed.
+  std::vector<std::shared_ptr<BackendModelInstance>> bg_instances_;
+  std::vector<std::shared_ptr<BackendModelInstance>> bg_passive_instances_;
 };
 
 }

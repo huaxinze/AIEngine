@@ -1,5 +1,6 @@
 #include "interface/IServer.h"
-#include "status.h"
+#include "backend_model.h"
+#include "server.h"
 
 #if defined(_MSC_VER)
 #define API_DECLSPEC __declspec(dllexport)
@@ -8,6 +9,36 @@
 #else
 #define API_DECLSPEC
 #endif
+
+namespace core {
+
+InferenceServer::InferenceServer()
+  : version_(SERVER_VERSION), 
+    ready_state_(ServerReadyState::SERVER_INVALID)
+{
+}
+
+Status InferenceServer::Init() {
+  return Status::Success;
+}
+
+Status InferenceServer::Stop(const bool force) {
+  return Status::Success;
+}
+
+Status InferenceServer::IsLive(bool* live) {
+  return Status::Success;
+}
+
+Status InferenceServer::PollModelRepository() {
+  return Status::Success;
+}
+
+Status InferenceServer::IsReady(bool* ready) {
+  return Status::Success;
+}
+
+}
 
 class ServerError {
  public:

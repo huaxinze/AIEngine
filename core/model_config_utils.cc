@@ -275,4 +275,136 @@ std::string InstanceConfigSignature(const inference::ModelInstanceGroup& instanc
   return config.SerializeAsString();
 }
 
+/// Auto-complete the instance count based on instance kind and backend name.
+/// \param group The instance group to set the count for.
+/// \param backend The backend name to check against.
+/// \return The error status.
+Status SetDefaultInstanceCount(inference::ModelInstanceGroup* group, 
+                               const std::string& backend) {
+  group->set_count(1);
+  // Backends opt into the default_cpu_instance_count since
+  // some backends (pytorch, OpenVINO) don't perform well/have high overhead
+  // when using multiple instances.
+  const int default_cpu_instance_count = 2;
+  bool use_default_cpu_instance_count =
+      (backend == kTensorFlowBackend) || (backend == kOnnxRuntimeBackend);
+  if (group->kind() == inference::ModelInstanceGroup::KIND_CPU &&
+      use_default_cpu_instance_count) {
+    group->set_count(default_cpu_instance_count);
+  }
+  return Status::Success;
+}
+
+Status NormalizeInstanceGroup(const double min_compute_capability,
+                              const std::vector<inference::ModelInstanceGroup>& preferred_groups,
+                              inference::ModelConfig* config) {
+  // Instance group setting doesn't apply to ensemble
+  if (config->has_ensemble_scheduling()) {
+    return Status::Success;
+  }
+  // Creates a set of supported GPU device ids
+  std::set<int> supported_gpus;
+  // Get the total number of GPUs from the runtime library.
+  Status status = GetSupportedGPUs(&supported_gpus, min_compute_capability);
+  if (!status.IsOk()) {
+    return status;
+  }
+  // Make sure there is at least one instance_group.
+  if (config->instance_group().empty()) {
+    inference::ModelInstanceGroup* group = config->add_instance_group();
+    group->set_name(config->name());
+    for (const auto& pg : preferred_groups) {
+      // handle preferred GPU setting differently based on kind
+      if (pg.kind() == inference::ModelInstanceGroup::KIND_GPU) {
+        // Don't use preferred group with KIND_GPU if there is no GPU.
+        if (supported_gpus.empty()) {
+          continue;
+        }
+        // If preferred group sets GPUs, limit deployment onto those that
+        // are also listed in supported gpus
+        if (!pg.gpus().empty()) {
+          for (const int32_t gid : pg.gpus()) {
+            if (supported_gpus.find(gid) != supported_gpus.end()) {
+              group->add_gpus(gid);
+            }
+          }
+        }
+      } else if (pg.kind() == inference::ModelInstanceGroup::KIND_AUTO) {
+        // if AUTO, then set preferred GPU as is, to align with KIND_AUTO
+        // deduction specified below
+        for (const int32_t gid : pg.gpus()) {
+          group->add_gpus(gid);
+        }
+      }
+      group->set_kind(pg.kind());
+      group->set_count(pg.count());
+      // Found a valid preferred group.
+      break;
+    }
+  }
+  // Assign default name, kind and count to each instance group that
+  // doesn't give those values explicitly. For KIND_GPU, set GPUs to
+  // all available if not specified explicitly.
+  size_t cnt = 0;
+  for (auto& group : *config->mutable_instance_group()) {
+    // Name
+    if (group.name().empty()) {
+      group.set_name(config->name() + "_" + std::to_string(cnt));
+    }
+    cnt++;
+    // For KIND_AUTO... if there are no GPUs or if any of the listed
+    // 'gpu's are not present, then use KIND_CPU.
+    if (group.kind() == inference::ModelInstanceGroup::KIND_AUTO) {
+      if (supported_gpus.empty()) {
+        group.set_kind(inference::ModelInstanceGroup::KIND_CPU);
+      } else {
+        for (const int32_t gid : group.gpus()) {
+          if (supported_gpus.find(gid) == supported_gpus.end()) {
+            group.set_kind(inference::ModelInstanceGroup::KIND_CPU);
+            break;
+          }
+        }
+      }
+      if (group.kind() == inference::ModelInstanceGroup::KIND_AUTO) {
+        group.set_kind(inference::ModelInstanceGroup::KIND_GPU);
+      }
+    }
+    // KIND is resolved at this point
+    for (const auto& pg : preferred_groups) {
+      if (group.kind() != pg.kind()) {
+        continue;
+      }
+      // Limit the GPU setting within what is specified in the preferred group,
+      // if no available GPU then skip to next preferred group
+      if ((group.kind() == inference::ModelInstanceGroup::KIND_GPU) &&
+          group.gpus().empty() && !pg.gpus().empty()) {
+        for (const int32_t gid : pg.gpus()) {
+          if (supported_gpus.find(gid) != supported_gpus.end()) {
+            group.add_gpus(gid);
+          }
+        }
+        if (group.gpus().empty()) {
+          continue;
+        }
+      }
+      if ((group.count() < 1) && (pg.count() > 0)) {
+        group.set_count(pg.count());
+      }
+    }
+    // Set Triton default if the fields are not set from preferred group
+    // Count
+    if (group.count() < 1) {
+      RETURN_IF_ERROR(SetDefaultInstanceCount(&group, config->backend()));
+    }
+    // GPUs
+    if ((group.kind() == inference::ModelInstanceGroup::KIND_GPU) &&
+        (group.gpus().size() == 0)) {
+      for (auto d : supported_gpus) {
+        group.add_gpus(d);
+      }
+    }
+  }
+  return Status::Success;
+}
+
 } // namespace core

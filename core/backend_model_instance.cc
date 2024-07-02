@@ -18,6 +18,12 @@ Status BackendModelInstance::CreateInstance(BackendModel* model,
                                             const inference::ModelRateLimiter& rate_limiter_config,
                                             const std::vector<SecondaryDevice>& secondary_devices,
                                             std::shared_ptr<BackendModelInstance>* backend_model_instance) {
+  static HostPolicyCmdlineConfig empty_host_policy;
+  const HostPolicyCmdlineConfig* host_policy = &empty_host_policy;
+  const auto policy_it = model->HostPolicyMap().find(host_policy_name);
+  if (policy_it != model->HostPolicyMap().end()) {
+    host_policy = &policy_it->second;
+  }
   return Status::Success;
 }
 

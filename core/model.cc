@@ -1,5 +1,3 @@
-#pragma once
-
 #include "model.h"
 #include "model_config_utils.h"
 

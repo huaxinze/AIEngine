@@ -8,6 +8,8 @@
 
 namespace core {
 
+#define SERVER_VERSION "1.0.0"
+
 constexpr char kQnnBackend[] = "qnn";
 constexpr char kQnnPlatform[] = "qualcomm";
 

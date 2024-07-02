@@ -128,4 +128,21 @@ bool EquivalentInInstanceConfig(const inference::ModelInstanceGroup& instance_co
 /// \return Signature identifying the instance config.
 std::string InstanceConfigSignature(const inference::ModelInstanceGroup& instance_config);
 
+/// [FIXME] better formalize config normalization / validation
+/// Detects and adds missing fields in instance group setting.
+/// \param min_compute_capability The minimum supported CUDA compute
+/// capability.
+/// \param config The model configuration
+/// \return The error status
+Status NormalizeInstanceGroup(const double min_compute_capability,
+                              const std::vector<inference::ModelInstanceGroup>& preferred_groups,
+                              inference::ModelConfig* config);
+
+/// Auto-complete the instance count based on instance kind and backend name.
+/// \param group The instance group to set the count for.
+/// \param backend The backend name to check against.
+/// \return The error status.
+Status SetDefaultInstanceCount(inference::ModelInstanceGroup* group, 
+                               const std::string& backend);
+
 } // namespace core

@@ -1,6 +1,7 @@
-#pragma once
-
 #include "backend_model.h"
+#include "backend_config.h"
+#include "server.h"
+#include "shared_library.h"
 
 namespace core {
 
@@ -12,6 +13,138 @@ Status BackendModel::Create(InferenceServer* server,
                             inference::ModelConfig model_config,
                             const bool is_config_provided, 
                             std::unique_ptr<BackendModel>* model) {
+  model->reset();
+  // The model configuration must specify a backend.
+  const std::string& backend_name = model_config.backend();
+  if (backend_name.empty()) {
+    auto msg = "must specify 'backend' for '" + model_config.name() + "'";
+    return Status(Status::Code::INVALID_ARG, msg);
+  }
+  // Localize the content of the model repository corresponding to
+  // 'model_path'. This model holds a handle to the localized content
+  // so that it persists as long as the model is loaded.
+  auto localized_model_dir = std::make_shared<LocalizedPath>(model_path);
+  // Get some internal configuration values needed for initialization.
+  std::string backend_dir;
+  RETURN_IF_ERROR(BackendConfigurationGlobalBackendsDirectory(
+      backend_cmdline_config_map, &backend_dir));
+
+  bool auto_complete_config = false;
+  RETURN_IF_ERROR(BackendConfigurationAutoCompleteConfig(
+      backend_cmdline_config_map, &auto_complete_config));
+
+  double min_compute_capability = 0;
+  RETURN_IF_ERROR(BackendConfigurationMinComputeCapability(
+      backend_cmdline_config_map, &min_compute_capability));
+
+  std::string specialized_backend_name;
+  RETURN_IF_ERROR(BackendConfigurationSpecializeBackendName(
+      backend_cmdline_config_map, backend_name, &specialized_backend_name));
+
+  bool is_python_based_backend = false;
+  std::vector<std::string> search_paths = GetBackendLibrarySearchPaths(
+      model_path, version, backend_dir, backend_name);
+  std::string backend_libdir, backend_libpath;
+  RETURN_IF_ERROR(GetBackendLibraryProperties(
+      localized_model_dir->Path(), version, backend_dir,
+      specialized_backend_name, &model_config, &is_python_based_backend,
+      &search_paths, &backend_libdir, &backend_libpath));
+  // Resolve the global backend configuration with the specific backend
+  // configuration
+  BackendCmdlineConfig config;
+  RETURN_IF_ERROR(ResolveBackendConfigs(
+      backend_cmdline_config_map,
+      (is_python_based_backend ? kPythonBackend : backend_name), config));
+
+  RETURN_IF_ERROR(SetBackendConfigDefaults(config));
+  std::shared_ptr<Backend> backend;
+  RETURN_IF_ERROR(server->GetBackendManager()->CreateBackend(
+      backend_name, backend_libdir, backend_libpath, config, &backend));
+  // Normalize backend-dependent config
+  {
+    const auto& attributes = backend->BackendAttributes();
+    // [WIP] formalize config normalization / validation
+    RETURN_IF_ERROR(NormalizeInstanceGroup(
+        min_compute_capability, attributes.preferred_groups_, &model_config));
+    RETURN_IF_ERROR(
+        ValidateInstanceGroup(model_config, min_compute_capability));
+  }
+  // Create and initialize the model.
+  std::unique_ptr<BackendModel> local_model(new BackendModel(
+      server, localized_model_dir, backend, min_compute_capability, version,
+      model_config, auto_complete_config, backend_cmdline_config_map,
+      host_policy_map));
+
+  BackendModel* raw_local_model = local_model.get();
+  // Model initialization is optional... The TRITONBACKEND_Model object is this
+  // TritonModel object.
+  if (backend->ModelInitFn() != nullptr) {
+    // We must set set shared library path to point to the backend directory in
+    // case the backend library attempts to load additional shared libraries.
+    // Currently, the set and reset function is effective only on Windows, so
+    // there is no need to set path on non-Windows.
+    // However, parallel model loading will not see any speedup on Windows and
+    // the global lock inside the SharedLibrary is a WAR.
+    // [FIXME] Reduce lock WAR on SharedLibrary (DLIS-4300)
+#ifdef _WIN32
+    std::unique_ptr<SharedLibrary> slib;
+    RETURN_IF_ERROR(SharedLibrary::Acquire(&slib));
+    RETURN_IF_ERROR(slib->SetLibraryDirectory(backend->Directory()));
+#endif
+    SERVER_Error* err = backend->ModelInitFn()(
+      reinterpret_cast<BACKEND_Model*>(raw_local_model));
+#ifdef _WIN32
+    RETURN_IF_ERROR(slib->ResetLibraryDirectory());
+#endif
+    RETURN_IF_SERVER_ERROR(err);
+  }
+  // Initialize the model for Triton core usage
+  RETURN_IF_ERROR(local_model->Init(is_config_provided));
+  RETURN_IF_ERROR(local_model->GetExecutionPolicy(model_config));
+  // Create or update the model instances for this model.
+  std::vector<std::shared_ptr<BackendModelInstance>> added_instances, 
+    removed_instances;
+  RETURN_IF_ERROR(local_model->PrepareInstances(
+      model_config, &added_instances, &removed_instances));
+  RETURN_IF_ERROR(local_model->SetConfiguredScheduler(added_instances));
+  local_model->CommitInstances();
+  *model = std::move(local_model);
+  return Status::Success;
+}
+
+// Prepare the next set of instances on the background. Returns the instances
+// that will be added and removed if the next set of instances is to be
+// committed.
+Status BackendModel::PrepareInstances(const inference::ModelConfig& model_config,
+  std::vector<std::shared_ptr<BackendModelInstance>>* added_instances,
+  std::vector<std::shared_ptr<BackendModelInstance>>* removed_instances) {
+  return Status::Success;
+}
+
+Status BackendModel::SetConfiguredScheduler(
+  const std::vector<std::shared_ptr<BackendModelInstance>>& new_instances) {
+  return Status::Success;
+}
+
+// Replace the foreground instances with background instances.
+void BackendModel::CommitInstances() {
+  instances_.swap(bg_instances_);
+  passive_instances_.swap(bg_passive_instances_);
+  ClearBackgroundInstances();
+}
+
+void BackendModel::ClearBackgroundInstances() {
+  bg_instances_.clear();
+  bg_passive_instances_.clear();
+}
+
+// Gets the execution policy setting from the backend.
+Status BackendModel::GetExecutionPolicy(const inference::ModelConfig& model_config) {
+  // Set 'device_blocking_'
+  device_blocking_ = false;
+  if (backend_->ExecutionPolicy() == BACKEND_EXECUTION_DEVICE_BLOCKING) {
+    device_blocking_ = true;
+  }
   return Status::Success;
 }
 
@@ -20,10 +153,8 @@ Status BackendModel::Create(InferenceServer* server,
 Status BackendModel::ResolveBackendConfigs(const BackendCmdlineConfigMap& backend_cmdline_config_map,
                                            const std::string& backend_name, 
                                            BackendCmdlineConfig& config) {
-  const auto& global_itr = 
-    backend_cmdline_config_map.find(std::string());
-  const auto& specific_itr = 
-    backend_cmdline_config_map.find(backend_name);
+  const auto& global_itr = backend_cmdline_config_map.find(std::string());
+  const auto& specific_itr = backend_cmdline_config_map.find(backend_name);
   std::map<std::string, std::string> lconfig;
   if (global_itr != backend_cmdline_config_map.end()) {
     // Accumulate all global settings
@@ -38,9 +169,7 @@ Status BackendModel::ResolveBackendConfigs(const BackendCmdlineConfigMap& backen
       lconfig[setting.first] = setting.second;
     }
   }
-  for (auto& final_setting : lconfig) {
-    config.emplace_back(final_setting);
-  }
+  for (auto& final_setting : lconfig) { config.emplace_back(final_setting); }
   return Status::Success;
 }
 
